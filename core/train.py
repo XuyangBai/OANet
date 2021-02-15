@@ -13,16 +13,18 @@ from utils import tocuda
 def train_step(step, optimizer, model, match_loss, data):
     model.train()
 
-    res_logits, res_e_hat = model(data)
+    res_logits, res_e_hat, Ms, _ = model(data)
     loss = 0
     loss_val = []
     for i in range(len(res_logits)):
-        loss_i, geo_loss, cla_loss, l2_loss, _, _ = match_loss.run(step, data, res_logits[i], res_e_hat[i])
+        loss_i, geo_loss, cla_loss, l2_loss, _, _ = match_loss.run(step, data, res_logits[i], res_e_hat[i], Ms[i])
         loss += loss_i
         loss_val += [geo_loss, cla_loss, l2_loss]
     optimizer.zero_grad()
     loss.backward()
     for name, param in model.named_parameters():
+        # if param.grad is None:
+        #     continue
         if torch.any(torch.isnan(param.grad)):
             print('skip because nan')
             return loss_val

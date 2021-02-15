@@ -24,7 +24,7 @@ class MatchLoss(object):
     self.geo_loss_margin = config.geo_loss_margin
     self.loss_essential_init_iter = config.loss_essential_init_iter
 
-  def run(self, global_step, data, logits, e_hat):
+  def run(self, global_step, data, logits, e_hat, M):
     R_in, t_in, y_in, pts_virt = data['Rs'], data['ts'], data['ys'], data['virtPts']
     
     # Get groundtruth Essential matrix
@@ -84,6 +84,11 @@ class MatchLoss(object):
     if self.loss_essential > 0 and global_step >= self.loss_essential_init_iter:
         loss += self.loss_essential * essential_loss 
     if self.loss_classif > 0:
+        gt_labels = (data['ys'] < self.obj_geod_th).float()
+        gt_M = gt_labels * gt_labels.permute(0,2,1)
+        sm_loss = torch.nn.MSELoss(reduction='mean')(M, gt_M)
+        loss += sm_loss
+        # classif_loss = sm_loss
         loss += self.loss_classif * classif_loss
 
     return [loss, (self.loss_essential * essential_loss).item(), (self.loss_classif * classif_loss).item(), L2_loss.item(), precision.item(), recall.item()]

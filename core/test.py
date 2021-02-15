@@ -6,6 +6,7 @@ from six.moves import xrange
 from loss import MatchLoss
 from evaluation import eval_nondecompose, eval_decompose
 from utils import tocuda, get_pool_result
+from tqdm import tqdm
 
 
 def test_sample(args):
@@ -96,12 +97,16 @@ def test_process(mode, model, cur_global_step, data_loader, config):
 
     results, pool_arg = [], []
     eval_step, eval_step_i, num_processor = 100, 0, 8
+    inlier_ratio_mean, inlier_ratio_max, select_inlier_ratio = [], [], []
     with torch.no_grad(): 
-        for test_data in loader_iter:
+        for test_data in tqdm(loader_iter):
             test_data = tocuda(test_data)
-            res_logits, res_e_hat = model(test_data)
+            res_logits, res_e_hat, Ms, stats = model(test_data)
+            # inlier_ratio_mean += [stats['inlier_ratio_mean']]
+            # inlier_ratio_max += [stats['inlier_ratio_max']]
+            # select_inlier_ratio += [stats['select_inlier_ratio']]
             y_hat, e_hat = res_logits[-1], res_e_hat[-1]
-            loss, geo_loss, cla_loss, l2_loss, prec, rec = match_loss.run(cur_global_step, test_data, y_hat, e_hat)
+            loss, geo_loss, cla_loss, l2_loss, prec, rec = match_loss.run(cur_global_step, test_data, y_hat, e_hat, Ms[-1])
             info = [geo_loss, cla_loss, l2_loss, prec, rec, 2*prec*rec/(prec+rec+1e-15)]
             for info_idx, value in enumerate(info):
                 network_info[network_infor_list[info_idx]].append(value)
@@ -134,7 +139,7 @@ def test_process(mode, model, cur_global_step, data_loader, config):
                     pool_arg = []
         if len(pool_arg) > 0:
             results += get_pool_result(num_processor, test_sample, pool_arg)
-
+    # print(np.mean(inlier_ratio_mean), np.mean(inlier_ratio_max), np.mean(select_inlier_ratio))
     measure_list = ["err_q", "err_t", "num", 'R_hat', 't_hat']
     eval_res = {}
     for measure_idx, measure in enumerate(measure_list):
